@@ -170,7 +170,7 @@ G01 F{args.feed}; Set feedrate to {args.feed} mm/min
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Gerber file parser")
+    parser = argparse.ArgumentParser(description="Convert a drill file to GCode")
     parser.add_argument("-i", "--input", help="Input file path")
     parser.add_argument("-o", "--output", help="Output file path")
     parser.add_argument(

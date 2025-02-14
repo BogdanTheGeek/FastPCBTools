@@ -343,7 +343,7 @@ def generate_route_gcode(edges, args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Gerber file parser")
+    parser = argparse.ArgumentParser(description="Create Routing Job GCode from Board Edge Gerber")
     parser.add_argument("-i", "--input", help="Input file path")
     parser.add_argument("-o", "--output", help="Output file path")
     parser.add_argument(
