@@ -1,6 +1,8 @@
 # Fast PCB Tools
 A collection of tools, useful for manufacturing PCBs at home.
 
+<img width="665" alt="image" src="https://github.com/user-attachments/assets/c3eccb25-fea1-43d2-80e8-88e24e5eb7a0" />
+
 ## Tools
 All of the Gerber/Excellon files tested have been from KiCAD.
 The G-Code produced should be pretty portable, but it's mostly targeted for LinuxCNC and grbl.
