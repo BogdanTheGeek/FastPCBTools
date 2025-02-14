@@ -313,6 +313,7 @@ G17; Set XY plane
 G94; Set feedrate to mm/min
 G40; Disable tool radius compensation
 G49; Disable tool length offset
+G01 F{args.feed}; Set feedrate to {args.feed} mm/min
 """
 
 
@@ -355,6 +356,9 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tool", type=float, default=2.0, help="Tool diameter")
     parser.add_argument(
         "-x", "--entry", type=float, nargs=2, default=(0, 0), help="Entry point"
+    )
+    parser.add_argument(
+        "-f", "--feed", type=float, default=100.0, help="Feedrate in mm/min"
     )
     args = parser.parse_args()
 
