@@ -1,0 +1,10 @@
+**/venv
+.DS_Store
+*.swo
+*.swp
+*.session
+
+*.nc
+**/out
+**/*-backups
+**/.bak
