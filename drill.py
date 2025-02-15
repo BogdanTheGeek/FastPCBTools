@@ -116,16 +116,14 @@ def sort_points(points: list, entry: Point):
     if len(points) == 0:
         return []
     sorted_points = []
-    sorted_points.append(entry)
-    for i in range(len(points)):
-        min_dist = float("inf")
-        min_index = -1
-        for j in range(i, len(points)):
-            if sorted_points[i].dist(points[j]) < min_dist:
-                min_dist = sorted_points[i].dist(points[j])
-                min_index = j
-        sorted_points.append(points[min_index])
-    return sorted_points[1:]
+    points = points.copy()
+    current = entry
+    while len(points) > 0:
+        next_point = min(points, key=lambda p: current.dist(p))
+        sorted_points.append(next_point)
+        points.remove(next_point)
+        current = next_point
+    return sorted_points
 
 
 def tool_change(t: int, d: float):
@@ -192,11 +190,10 @@ if __name__ == "__main__":
     for tool in tools:
         print(f"Tool: {tool}")
         print(f"Diameter: {tools[tool]['diameter']}")
-        print(f"Points:{tools[tool]['points']}")
-        print(f"Paths: {tools[tool]['paths']}")
+        print(f"Points({len(tools[tool]['points'])}): {tools[tool]['points']}")
+        print(f"Paths({len(tools[tool]['paths'])}): {tools[tool]['paths']}")
 
     # sort points
     for tool in tools:
         tools[tool]["points"] = sort_points(tools[tool]["points"], Point(*args.entry))
-
     generate_gcode(tools, args)
