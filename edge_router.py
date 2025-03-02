@@ -314,6 +314,7 @@ G94; Set feedrate to mm/min
 G40; Disable tool radius compensation
 G49; Disable tool length offset
 G01 F{args.feed}; Set feedrate to {args.feed} mm/min
+M03 S{args.rpm}; Start spindle at {args.rpm} RPM
 """
 
 
@@ -343,7 +344,9 @@ def generate_route_gcode(edges, args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create Routing Job GCode from Board Edge Gerber")
+    parser = argparse.ArgumentParser(
+        description="Create Routing Job GCode from Board Edge Gerber"
+    )
     parser.add_argument("-i", "--input", help="Input file path")
     parser.add_argument("-o", "--output", help="Output file path")
     parser.add_argument(
@@ -359,6 +362,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-f", "--feed", type=float, default=100.0, help="Feedrate in mm/min"
+    )
+    parser.add_argument(
+        "-rpm", "--rpm", type=float, default=10000.0, help="Spindle speed in RPM"
     )
     args = parser.parse_args()
 
