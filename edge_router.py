@@ -11,6 +11,8 @@ import datetime
 FMT = (4, 6)
 UNIT = "mm"
 
+TOLERANCE = 1 / (2**6)  # 1/64 mm
+
 
 class Within:
     def __init__(self, o):
@@ -73,6 +75,10 @@ def parse_gerber(file_path: str):
 
 class Point:
     def __init__(self, x, y):
+        if TOLERANCE > 0:
+            x = round(x / TOLERANCE) * TOLERANCE
+            y = round(y / TOLERANCE) * TOLERANCE
+
         self.x = x
         self.y = y
 
@@ -369,7 +375,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "-rpm", "--rpm", type=float, default=10000.0, help="Spindle speed in RPM"
     )
+    parser.add_argument(
+        "--tolerance", type=float, default=TOLERANCE, help="Tolerance for path joining"
+    )
     args = parser.parse_args()
+    TOLERANCE = args.tolerance
 
     if not args.output:
         args.output = ".".join(args.input.split(".")[0:-1]) + ".nc"
