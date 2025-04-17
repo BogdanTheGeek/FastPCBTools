@@ -429,14 +429,19 @@ if __name__ == "__main__":
 
     for polygon, level in sorted_polygons:
         direction = 1.0 if level % 2 == 0 else -1.0
-        offset = offset_polygon(polygon, direction * args.tool / 2.0)
+        try:
+            offset = offset_polygon(polygon, direction * args.tool / 2.0)
+        except ValueError as e:
+            print(f"Warning:  offsetting polygon failed: {e}")
+            print("\tFix by using a smaller tool diameter")
+            continue
         edges = polygon_to_path(offset)
 
         output += generate_route_gcode(edges, args)
 
     output += generate_footer(args)
 
-    print(output)
-
     with open(args.output, "w") as file:
         file.write(output)
+
+    print("GCode generated successfully")
