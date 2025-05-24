@@ -250,6 +250,21 @@ if __name__ == "__main__":
         print(f"Points({len(tools[tool]['points'])}): {tools[tool]['points']}")
         print(f"Paths({len(tools[tool]['paths'])}): {tools[tool]['paths']}")
 
+    # merge tools with the same diameter
+    merged_tools = {}
+    for tool in tools:
+        diameter = tools[tool]["diameter"]
+        if diameter not in merged_tools:
+            merged_tools[diameter] = {"points": [], "paths": [], "diameter": diameter}
+        merged_tools[diameter]["points"].extend(tools[tool]["points"])
+        merged_tools[diameter]["paths"].extend(tools[tool]["paths"])
+
+    # replace diameter with tool number
+    tools = {}
+    for i, diameter in enumerate(merged_tools):
+        tools[i + 1] = merged_tools[diameter]
+        tools[i + 1]["diameter"] = diameter
+
     # sort points
     for tool in tools:
         tools[tool]["points"] = sort_points(tools[tool]["points"], Point(*args.entry))
