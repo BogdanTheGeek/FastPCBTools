@@ -130,7 +130,37 @@ def tool_change(t: int, d: float):
     return f"T{t} M06; {d}mm\n"
 
 
-def generate_gcode(tools, args, file_path=None):
+def generate_drill_gcode(p: Point, args):
+    output = f"G00 X{p.x} Y{p.y}\n"
+    output += f"G00 Z{args.start}\n"
+    output += f"G01 Z{args.end}\n"
+    output += f"G00 Z{args.retract}\n"
+    return output
+
+
+def generate_bore_gcode(p: Point, args, diameter: float, floor=False):
+    path_r = (diameter - args.max_tool / 2) / 2
+    offset = path_r + args.max_tool / 2
+    pitch = args.bore_pitch
+
+    output = f"G00 X{p.x - offset} Y{p.y}\n"
+    output += f"G00 Z{args.start}\n"
+
+    output += "G91; Switch to relative positioning\n"
+    remaining = args.start - args.end
+    while remaining - pitch > 0:
+        output += f"G3 Z{-pitch} I{path_r}\n"
+        remaining -= pitch
+    output += f"G3 Z{-remaining} I{path_r}\n"
+    output += "G90; Switch back to absolute positioning\n"
+
+    if floor:
+        output += f"G3 I{path_r}\n"
+    output += f"G00 Z{args.retract}\n"
+    return output
+
+
+def generate_gcode(tools, args, file_path=None, bore=False):
     output = f"""; Generated on {datetime.datetime.now()}
 ; Command: `{" ".join(sys.argv)}`
 G21; Set units to mm
@@ -148,10 +178,10 @@ M03 S{args.rpm}; Start spindle at {args.rpm} RPM
     for t, tool in tools.items():
         output += tool_change(t, tool["diameter"])
         for p in tool["points"]:
-            output += f"G00 X{p.x} Y{p.y}\n"
-            output += f"G00 Z{args.start}\n"
-            output += f"G01 Z{args.end}\n"
-            output += f"G00 Z{args.retract}\n"
+            if bore:
+                output += generate_bore_gcode(p, args, tool["diameter"])
+            else:
+                output += generate_drill_gcode(p, args)
 
         for path in tool["paths"]:
             for code in path:
@@ -165,7 +195,6 @@ M03 S{args.rpm}; Start spindle at {args.rpm} RPM
 
     output += "M5; Stop spindle\n"
     output += "M30; End of program\n"
-    print(output)
     file_path = file_path or args.output
     with open(file_path, "w") as file:
         file.write(output)
@@ -190,6 +219,16 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-rpm", "--rpm", type=float, default=10000.0, help="Spindle speed in RPM"
+    )
+    parser.add_argument(
+        "-bp", "--bore-pitch", type=float, default=0.5, help="Bore pitch in mm"
+    )
+    parser.add_argument(
+        "-mt",
+        "--max-tool",
+        type=float,
+        default=1.5,
+        help="Max tool diameter in mm, Everything above this will be bored",
     )
     parser.add_argument(
         "-sp",
@@ -219,8 +258,18 @@ if __name__ == "__main__":
         path = args.output.split(".")
         suffix = path[-1]
         file_path = ".".join(path[0:-1])
+
+        ops = []
         for tool in tools:
+            ops.append((tool, tools[tool]["diameter"] > args.max_tool))
+
+        for tool, bore in ops:
             d = tools[tool]["diameter"]
-            generate_gcode({tool: tools[tool]}, args, f"{file_path}_T{tool}({d}mm).{suffix}")
+            generate_gcode(
+                {tool: tools[tool]},
+                args,
+                f"{file_path}_T{tool}({d}mm).{suffix}",
+                bore=bore,
+            )
     else:
-        generate_gcode(tools, args)
+        generate_gcode(tools, args, args.output)
