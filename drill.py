@@ -126,8 +126,11 @@ def sort_points(points: list, entry: Point):
     return sorted_points
 
 
-def tool_change(t: int, d: float):
-    return f"T{t} M06; {d}mm\n"
+def tool_change(t: int, d: float, args):
+    output = "M5; Stop spindle\n"
+    output += f"T{t} M06; {d}mm\n"
+    output += f"M03 S{args.rpm}; Start spindle at {args.rpm} RPM\n"
+    return output
 
 
 def generate_drill_gcode(p: Point, args):
@@ -170,13 +173,12 @@ G94; Set feedrate to mm/min
 G40; Disable tool radius compensation
 G49; Disable tool length offset
 G01 F{args.feed}; Set feedrate to {args.feed} mm/min
-M03 S{args.rpm}; Start spindle at {args.rpm} RPM
 """
 
     output += f"G00 Z{args.retract}\n"
 
     for t, tool in tools.items():
-        output += tool_change(t, tool["diameter"])
+        output += tool_change(t, tool["diameter"], args)
         for p in tool["points"]:
             if bore:
                 output += generate_bore_gcode(p, args, tool["diameter"])
