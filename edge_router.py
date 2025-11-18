@@ -409,7 +409,12 @@ if __name__ == "__main__":
         edges = reorder_edges(edges, closest_edge)
         edges = segment_path(edges)
 
-        polygon = path_to_polygon(edges)
+        try:
+            polygon = path_to_polygon(edges)
+        except ValueError as e:
+            print(f"Warning:  path to polygon conversion failed: {e}")
+            # TODO: handle slot_width == tool diameter
+            continue
         polygons.append(polygon)
 
     sorted_polygons = sorted(polygons, key=Within, reverse=True)
@@ -435,7 +440,12 @@ if __name__ == "__main__":
             print(f"Warning:  offsetting polygon failed: {e}")
             print("\tFix by using a smaller tool diameter")
             continue
-        edges = polygon_to_path(offset)
+        try:
+            edges = polygon_to_path(offset)
+        except Exception as e:
+            print(f"Warning:  polygon to path conversion failed: {e}")
+            # TODO: handle slot_width == tool diameter
+            continue
 
         output += generate_route_gcode(edges, args)
 
