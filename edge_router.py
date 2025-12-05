@@ -94,6 +94,20 @@ class Point:
     def __sub__(self, other):
         return Point(self.x - other.x, self.y - other.y)
 
+    def __mul__(self, scalar: float):
+        return Point(self.x * scalar, self.y * scalar)
+
+    def len(self):
+        """Length of the point vector"""
+        return (self.x**2 + self.y**2) ** 0.5
+
+    def norm(self):
+        """Normalise the point vector"""
+        r = self.len()
+        if r == 0:
+            return Point(0, 0)
+        return Point(self.x / r, self.y / r)
+
 
 class Line:
     def __init__(self, start: Point, end: Point):
@@ -331,25 +345,95 @@ def generate_footer(args):
 M30; End of program"""
 
 
-def generate_route_gcode(edges, args):
+def generate_route_gcode(edges, args, polygon_index):
+
+    depth_total = abs(args.end - args.start)
+    depth = depth_total
+    if args.depth:
+        depth = min(depth, args.depth)
+
+    passes = int(depth_total // depth)
+    pass_depth = depth_total / passes
+    print(f"Total cut depth: {depth_total:.3}mm")
+    print(f"Using max cut depth of {depth:.3}mm")
+    print(f"Number of passes: {passes}")
+    print(f"Pass depth: {pass_depth:.3}mm")
+
     output = f"G00 Z{args.retract};\n"
     output += f"G00 X{edges[0].start.x} Y{edges[0].start.y};\n"
-    output += f"G00 Z{args.start};\nG01 Z{args.end};\n"
 
-    for edge in edges:
-        if isinstance(edge, Line):
-            output += f"G01 X{edge.end.x} Y{edge.end.y};\n"
-        elif isinstance(edge, Arc) and edge.clockwise:
-            center_offset = edge.center - edge.start
-            output += f"G02 X{edge.end.x} Y{edge.end.y} I{center_offset.x} J{center_offset.y};\n"
-        elif isinstance(edge, Arc) and not edge.clockwise:
-            center_offset = edge.center - edge.start
-            output += f"G03 X{edge.end.x} Y{edge.end.y} I{center_offset.x} J{center_offset.y};\n"
-        else:
-            raise ValueError(f"Unknown edge type {edge}")
+    start_z = args.start
+    end_z = args.start - pass_depth
+
+    for r in range(passes):
+
+        output += f"; Polygon {polygon_index} - Pass {r + 1} of {passes}\n"
+        output += f"G00 Z{start_z};\nG01 Z{end_z};\n"
+
+        for edge in edges:
+            if isinstance(edge, Line):
+                output += f"G01 X{edge.end.x} Y{edge.end.y};\n"
+            elif isinstance(edge, Arc) and edge.clockwise:
+                center_offset = edge.center - edge.start
+                output += f"G02 X{edge.end.x} Y{edge.end.y} I{center_offset.x} J{center_offset.y};\n"
+            elif isinstance(edge, Arc) and not edge.clockwise:
+                center_offset = edge.center - edge.start
+                output += f"G03 X{edge.end.x} Y{edge.end.y} I{center_offset.x} J{center_offset.y};\n"
+            else:
+                raise ValueError(f"Unknown edge type {edge}")
+
+        start_z = end_z
+        end_z -= pass_depth
 
     output += f"G00 Z{args.retract};\n"
     return output
+
+
+def link_edges(edges):
+    paths = []
+    path, unlinked_edges = create_path(edges)
+    paths.append(path)
+    last_remaining_edges = 0
+    while len(unlinked_edges) > 0 and len(unlinked_edges) != last_remaining_edges:
+        last_remaining_edges = len(unlinked_edges)
+        path, unlinked_edges = create_path(unlinked_edges)
+        paths.append(path)
+    return paths
+
+
+def create_polygons(paths, entry):
+    polygons = []
+    for i, edges in enumerate(paths):
+        closest_edge = find_closest_edge(edges, entry)
+
+        edges = reorder_edges(edges, closest_edge)
+        edges = segment_path(edges)
+
+        try:
+            polygon = path_to_polygon(edges)
+        except ValueError as e:
+            print(f"Warning:  path to polygon conversion failed: {e}")
+            # TODO: handle slot_width == tool diameter
+            continue
+        polygons.append(polygon)
+    return polygons
+
+
+def sort_polygons(polygons):
+    sorted_polygons = sorted(polygons, key=Within, reverse=True)
+    # add levels to the sorted polygons
+    # odd levels are inside, even levels are outside
+    levels = [0] * len(sorted_polygons)
+    for i in range(len(sorted_polygons)):
+        for j in range(i):
+            if sorted_polygons[j].contains(sorted_polygons[i]):
+                levels[i] += 1
+
+    # sort by level from deepest to shallowest
+    sorted_polygons = sorted(
+        zip(sorted_polygons, levels), key=lambda x: x[1], reverse=True
+    )
+    return sorted_polygons
 
 
 if __name__ == "__main__":
@@ -365,6 +449,7 @@ if __name__ == "__main__":
         "-s", "--start", type=float, default=1.0, help="Cut start height"
     )
     parser.add_argument("-e", "--end", type=float, default=-1.65, help="Cut end height")
+    parser.add_argument("-d", "--depth", type=float, default=None, help="Max cut depth")
     parser.add_argument("-t", "--tool", type=float, default=2.0, help="Tool diameter")
     parser.add_argument(
         "-x", "--entry", type=float, nargs=2, default=(0, 0), help="Entry point"
@@ -385,53 +470,17 @@ if __name__ == "__main__":
         args.output = ".".join(args.input.split(".")[0:-1]) + ".nc"
         print(f"Output file not specified, using `{args.output}`")
 
+    entry = Point(*args.entry)
+
     commands = parse_gerber(args.input)
     edges = extract_edges(commands)
 
-    paths = []
-    path, unlinked_edges = create_path(edges)
-    paths.append(path)
-    last_remaining_edges = 0
-    while len(unlinked_edges) > 0 and len(unlinked_edges) != last_remaining_edges:
-        last_remaining_edges = len(unlinked_edges)
-        path, unlinked_edges = create_path(unlinked_edges)
-        paths.append(path)
-
-    entry = Point(*args.entry)
+    paths = link_edges(edges)
+    polygons = create_polygons(paths, entry)
+    sorted_polygons = sort_polygons(polygons)
 
     output = generate_header(args)
-
-    polygons = []
-
-    for i, edges in enumerate(paths):
-        closest_edge = find_closest_edge(edges, entry)
-
-        edges = reorder_edges(edges, closest_edge)
-        edges = segment_path(edges)
-
-        try:
-            polygon = path_to_polygon(edges)
-        except ValueError as e:
-            print(f"Warning:  path to polygon conversion failed: {e}")
-            # TODO: handle slot_width == tool diameter
-            continue
-        polygons.append(polygon)
-
-    sorted_polygons = sorted(polygons, key=Within, reverse=True)
-
-    # add levels to the sorted polygons
-    # odd levels are inside, even levels are outside
-    levels = [0] * len(sorted_polygons)
-    for i in range(len(sorted_polygons)):
-        for j in range(i):
-            if sorted_polygons[j].contains(sorted_polygons[i]):
-                levels[i] += 1
-
-    # sort by level from deepest to shallowest
-    sorted_polygons = sorted(
-        zip(sorted_polygons, levels), key=lambda x: x[1], reverse=True
-    )
-
+    n = 0
     for polygon, level in sorted_polygons:
         direction = 1.0 if level % 2 == 0 else -1.0
         try:
@@ -447,7 +496,8 @@ if __name__ == "__main__":
             # TODO: handle slot_width == tool diameter
             continue
 
-        output += generate_route_gcode(edges, args)
+        output += generate_route_gcode(edges, args, n)
+        n += 1
 
     output += generate_footer(args)
 
